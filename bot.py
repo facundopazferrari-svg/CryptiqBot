@@ -1,4 +1,5 @@
 import os
+import asyncio
 import requests
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
@@ -6,9 +7,8 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 TOKEN = os.environ.get("TELEGRAM_TOKEN")
 
-# Base de datos en memoria
-alerts = {}  # {chat_id: {symbol: threshold%}}
-last_prices = {}  # {symbol: price}
+alerts = {}
+last_prices = {}
 
 COINGECKO_IDS = {
     "BTC": "bitcoin", "ETH": "ethereum", "SOL": "solana",
@@ -31,6 +31,18 @@ def get_price(symbol):
         return price, change
     except:
         return None, "Error al obtener precio."
+
+async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        "👋 *Bienvenido al Bot de Cryptos!*\n\n"
+        "📌 Comandos:\n"
+        "/precio BTC — Ver precio actual\n"
+        "/alerta BTC 5 — Alerta si cambia ±5%\n"
+        "/alertas — Ver tus alertas\n"
+        "/borraralerta BTC — Eliminar alerta\n\n"
+        "Cryptos: BTC, ETH, SOL, BNB, XRP, ADA, DOGE, AVAX, DOT, MATIC",
+        parse_mode="Markdown"
+    )
 
 async def cmd_precio(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
@@ -67,7 +79,6 @@ async def cmd_alerta(update: Update, context: ContextTypes.DEFAULT_TYPE):
         alerts[chat_id] = {}
     price, _ = get_price(symbol)
     alerts[chat_id][symbol] = {"threshold": threshold, "base_price": price}
-    last_prices[symbol] = price
     await update.message.reply_text(
         f"✅ Alerta creada para *{symbol}*\n"
         f"Te aviso si cambia ±{threshold}% desde ${price:,.2f}",
@@ -95,18 +106,6 @@ async def cmd_borrar(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"🗑️ Alerta de {symbol} eliminada.")
     else:
         await update.message.reply_text(f"No tenías alerta para {symbol}.")
-
-async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "👋 *Bienvenido al Bot de Cryptos!*\n\n"
-        "📌 Comandos disponibles:\n"
-        "/precio BTC — Ver precio actual\n"
-        "/alerta BTC 5 — Alerta si cambia ±5%\n"
-        "/alertas — Ver tus alertas\n"
-        "/borraralerta BTC — Eliminar alerta\n\n"
-        "Cryptos soportadas: BTC, ETH, SOL, BNB, XRP, ADA, DOGE, AVAX, DOT, MATIC",
-        parse_mode="Markdown"
-    )
 
 async def check_alerts(app):
     for chat_id, user_alerts in list(alerts.items()):
@@ -141,7 +140,7 @@ def main():
     scheduler.start()
 
     print("Bot corriendo...")
-    app.run_polling()
+    app.run_polling(allowed_updates=Update.ALL_TYPES)
 
 if __name__ == "__main__":
     main()
